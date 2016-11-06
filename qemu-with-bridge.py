@@ -10,6 +10,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 import threading
 
 from collections import namedtuple
@@ -51,6 +52,13 @@ def main():
         'refuse to run if cgroup processes already exist')
     parser.set_defaults(cgroup=True)
     parser.add_argument(
+        '--no-kill-children-at-exit',
+        dest='kill_children',
+        action='store_false',
+        help='By default will spawn a process to kill all cgroup' +
+        'children when the main Qemu process exited')
+    parser.set_defaults(kill_children=True)
+    parser.add_argument(
         '--ssh-key',
         '-S',
         dest='ssh_key',
@@ -65,6 +73,20 @@ def main():
     cgroup_name = 'qemu_' + ip_set_last(ip, 0)
     cgroups = Cgroup()
 
+    def kill_all():
+        "kill all cgroup processes"
+        time.sleep(0.5) # give child time to print output
+        for pid in (p for p in cgroups.cgroup_procs(cgroup_name)
+                    if p != os.getpid()):
+            os.kill(pid, signal.SIGINT)
+        time.sleep(2)
+        for pid in (p for p in cgroups.cgroup_procs(cgroup_name)
+                    if p != os.getpid()):
+            os.kill(pid, signal.SIGKILL)
+
+    if args.kill_cgroup:
+        kill_all()
+        sys.exit(0)
     if args.cgroup:
         if not cgroups.is_cgroup_empty(cgroup_name):
             sys.stderr.write('Processes for net %s are running:\n' %
@@ -78,6 +100,19 @@ def main():
                     pass  #whatever happens - nevermind, just debug info
                 sys.stderr.write('%d: %s\n' % (pid, commandline))
             sys.exit(2)
+        cgroups.join_cgroup(cgroup_name)
+        if args.kill_children:
+            pipe_r, pipe_w = os.pipe()
+            parentpid = os.getpid()
+            if os.fork() == 0:
+                os.setpgrp() # SIGKILL shouldn't kill us
+                os.close(pipe_w)
+                sys.stderr.write('%d: wait for %d, kill cgroup %s when dies\n' %
+                                 (os.getpid(), parentpid, cgroup_name))
+                os.read(pipe_r, 1)
+                sys.stderr.write('killing cgroup %s' % cgroup_name)
+                kill_all()
+                sys.exit(0)
     devname = 'br_' + ip_set_last(ip, 0)
     # can fail, since it might not exist
     subprocess.call(['ip', 'link', 'del', 'dev', devname])
