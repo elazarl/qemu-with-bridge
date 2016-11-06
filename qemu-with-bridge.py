@@ -86,7 +86,7 @@ def main():
               'type=bridge,id=bridge0,br=' + devname, *args.rest[1:])
 
 
-class Iptables:
+class Iptables(object):
     "access to iptables information via iptables command"
     entry = namedtuple(
         'iptable_entry',
