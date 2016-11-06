@@ -37,6 +37,20 @@ def main():
         '-n',
         help='network address of the interface, default mask /24')
     parser.add_argument(
+        '--kill-cgroup',
+        '-k',
+        dest='kill_cgroup',
+        action='store_true',
+        help='kills all process in cgroup from previous run')
+    parser.add_argument(
+        '--no-cgroup',
+        '-C',
+        dest='cgroup',
+        action='store_false',
+        help='store all processes in cgroup, ' +
+        'refuse to run if cgroup processes already exist')
+    parser.set_defaults(cgroup=True)
+    parser.add_argument(
         '--ssh-key',
         '-S',
         dest='ssh_key',
@@ -48,6 +62,22 @@ def main():
         return
     ip = ipaddress.ip_address(args.net)
     gateway = ip_set_last(ip, 199)
+    cgroup_name = 'qemu_' + ip_set_last(ip, 0)
+    cgroups = Cgroup()
+
+    if args.cgroup:
+        if not cgroups.is_cgroup_empty(cgroup_name):
+            sys.stderr.write('Processes for net %s are running:\n' %
+                             cgroup_name)
+            for pid in cgroups.cgroup_procs(cgroup_name):
+                commandline = 'cannot find pid %d' % pid
+                try:
+                    with open('/proc/%d/cmdline' % pid, 'r') as fileobj:
+                        commandline = fileobj.read().replace('\0', ' ')
+                except Exception as e:
+                    pass  #whatever happens - nevermind, just debug info
+                sys.stderr.write('%d: %s\n' % (pid, commandline))
+            sys.exit(2)
     devname = 'br_' + ip_set_last(ip, 0)
     # can fail, since it might not exist
     subprocess.call(['ip', 'link', 'del', 'dev', devname])
