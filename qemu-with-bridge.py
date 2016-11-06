@@ -82,7 +82,10 @@ def main():
         Iptables.masquarade_all_to(default_gateway_iface())
 
     masquerade()
-    repeat_every(5, masquerade)
+    if os.fork() == 0:
+        repeat_every(5, masquerade)
+        signal.sigwait([signal.SIGINT])
+        sys.exit(0)
     first_guest = ip_set_last(ip, 10)
     last_guest = ip_set_last(ip, 198)
     run_dnsmasq(devname, gateway, first_guest, last_guest)
