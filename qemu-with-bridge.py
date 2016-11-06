@@ -166,8 +166,8 @@ def run_sshd(gateway):
     sshd_path = spawn.find_executable('sshd')
     os.execlp(sshd_path, sshd_path, '-D', '-h', vagrant_priv.name, '-f',
               '/dev/null', '-o', 'Port=2222', '-o', 'ListenAddress=' + gateway,
-              '-e', '-o', 'AuthorizedKeysFile=' + vagrant_pub.name,
-              '-o', 'Subsystem=sftp internal-sftp')
+              '-e', '-o', 'AuthorizedKeysFile=' + vagrant_pub.name, '-o',
+              'Subsystem=sftp internal-sftp')
     sys.stderr.write('ERROR RUNNING sshd\n')
     sys.exit(1)
 
