@@ -15,11 +15,6 @@ import threading
 from collections import namedtuple
 from distutils import spawn
 
-import ctypes
-from ctypes.util import find_library
-PR_SET_PDEATHSIG = 1
-libc = ctypes.CDLL(find_library('c'))
-
 
 def ip_set_last(ip, last):
     "sets the last quadret of the IP"
@@ -47,18 +42,10 @@ def main():
         dest='ssh_key',
         action='store_true',
         help='just print SSH key')
-    parser.add_argument(
-        '--pdeathsig',
-        '-p',
-        dest='pdeathsig',
-        action='store_true',
-        help='set PDEATHSIG to kill process on parent\'s death')
     args = parser.parse_args()
     if args.ssh_key:
         sys.stdout.buffer.write(VAGRANT_PRIV)
         return
-    if args.pdeathsig:
-        libc.prctl(PR_SET_PDEATHSIG, signal.SIGINT)
     ip = ipaddress.ip_address(args.net)
     gateway = ip_set_last(ip, 199)
     devname = 'br_' + args.net
@@ -156,7 +143,6 @@ def run_dnsmasq(devname, gateway, first_guest, last_guest):
     "runs dnsmasq"
     if os.fork() != 0:
         return
-    libc.prctl(PR_SET_PDEATHSIG, signal.SIGINT)
     leasefile = tempfile.NamedTemporaryFile()
     os.execlp('dnsmasq', 'dnsmasq', '-d', '-z', '-I', 'lo', '-i', devname,
               '-a', gateway, '-A', '/gateway/' + gateway,
@@ -169,7 +155,6 @@ def run_sshd(gateway):
     "runs sshd on interface"
     if os.fork() != 0:
         return
-    libc.prctl(PR_SET_PDEATHSIG, signal.SIGINT)
     vagrant_priv = tempfile.NamedTemporaryFile()
     vagrant_priv.write(VAGRANT_PRIV)
     vagrant_priv.flush()
