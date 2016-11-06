@@ -48,7 +48,7 @@ def main():
         return
     ip = ipaddress.ip_address(args.net)
     gateway = ip_set_last(ip, 199)
-    devname = 'br_' + args.net
+    devname = 'br_' + ip_set_last(ip, 0)
     # can fail, since it might not exist
     subprocess.call(['ip', 'link', 'del', 'dev', devname])
     subprocess.check_call(
