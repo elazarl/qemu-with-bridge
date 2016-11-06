@@ -172,6 +172,81 @@ def run_sshd(gateway):
     sys.exit(1)
 
 
+class Cgroup(object):
+    """Cgroup allows creation and manipulation
+    of cgroup v1 through filesystem"""
+
+    def mk_cgroup(self, name):
+        "create a new cgroup"
+        new_cgroup = os.path.join(self.cgrouproot, name)
+        if not os.path.exists(new_cgroup):
+            os.mkdir(new_cgroup)
+        return new_cgroup
+
+    def cgroup_procs(self, name):
+        'list of pids in cgroup'
+        cgroup_procs = os.path.join(self.mk_cgroup(name), 'cgroup.procs')
+        with open(cgroup_procs, 'r') as fileobj:
+            return [int(x) for x in fileobj.readlines()]
+
+    def is_cgroup_empty(self, name):
+        "is_cgroup_empty returns true if no processes belong there"
+        cgroup_procs = os.path.join(self.mk_cgroup(name), 'cgroup.procs')
+        with open(cgroup_procs, 'r') as fileobj:
+            return fileobj.read().strip() == ''
+
+    def join_cgroup(self, name):
+        "create and join a cgroup"
+        cgroup_procs = os.path.join(self.mk_cgroup(name), 'cgroup.procs')
+        with open(cgroup_procs, 'w') as fileobj:
+            fileobj.write('%s\n' % os.getpid())
+
+    def __init__(self):
+        self.cgrouproot = self.find_create_cgroup()
+
+    @classmethod
+    def find_create_cgroup(cls):
+        "tries to fetch systemd cgroup, creates new dir if can't find"
+        cgroup_dir = '/sys/fs/cgroup/systemd'
+        if not cls.is_cgroup_mount_entry(cgroup_dir):
+            cgroup_dir = tempfile.NamedTemporaryFile(dir='/var/run').name
+            subprocess.check_call(['mount', '-t', 'cgroup', '-o',
+                                   'none,name=systemd,xattr', 'systemd',
+                                   cgroup_dir])
+        return cgroup_dir
+
+    @classmethod
+    def is_cgroup_mount_entry(cls, path):
+        "returns true if path is mounted as cgroup"
+        if not os.path.exists(path):
+            return False
+        path = os.path.realpath(path)
+        mount_entries = cls.mount_entries()
+        return mount_entries[path].type_ == 'cgroup'
+
+    @classmethod
+    def mount_entries(cls):
+        "return list of mount entries"
+        with open('/proc/mounts') as fileobj:
+            return {cls.mount_entry(line).dir_: cls.mount_entry(line)
+                    for line in fileobj.readlines()}
+
+    @classmethod
+    def mount_entry(cls, line):
+        "parse /proc/mounts entry to MountEntry object"
+        fsname, dir_, type_, opts, freq, passno = line.split()
+        return cls.MountEntry(
+            fsname=fsname,
+            dir_=dir_,
+            type_=type_,
+            opts=opts,
+            freq=freq,
+            passno=passno)
+
+    MountEntry = namedtuple(
+        'MountEntry', ['fsname', 'dir_', 'type_', 'opts', 'freq', 'passno'])
+
+
 VAGRANT_PRIV = b'''
 -----BEGIN RSA PRIVATE KEY-----
 MIIEogIBAAKCAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzI
