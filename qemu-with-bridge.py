@@ -37,19 +37,17 @@ def main():
         '--net',
         '-n',
         help='network address of the interface, default mask /24')
-    parser.add_argument(
-        '--kill-cgroup',
-        '-k',
-        dest='kill_cgroup',
-        action='store_true',
-        help='kills all process in cgroup from previous run')
-    parser.add_argument(
-        '--no-cgroup',
-        '-C',
-        dest='cgroup',
-        action='store_false',
-        help='store all processes in cgroup, ' +
-        'refuse to run if cgroup processes already exist')
+    parser.add_argument('--kill-cgroup',
+                        '-k',
+                        dest='kill_cgroup',
+                        action='store_true',
+                        help='kills all process in cgroup from previous run')
+    parser.add_argument('--no-cgroup',
+                        '-C',
+                        dest='cgroup',
+                        action='store_false',
+                        help='store all processes in cgroup, ' +
+                        'refuse to run if cgroup processes already exist')
     parser.set_defaults(cgroup=True)
     parser.add_argument(
         '--no-kill-children-at-exit',
@@ -58,12 +56,11 @@ def main():
         help='By default will spawn a process to kill all cgroup' +
         'children when the main Qemu process exited')
     parser.set_defaults(kill_children=True)
-    parser.add_argument(
-        '--ssh-key',
-        '-S',
-        dest='ssh_key',
-        action='store_true',
-        help='just print SSH key')
+    parser.add_argument('--ssh-key',
+                        '-S',
+                        dest='ssh_key',
+                        action='store_true',
+                        help='just print SSH key')
     args = parser.parse_args()
     if args.ssh_key:
         sys.stdout.buffer.write(VAGRANT_PRIV)
@@ -75,7 +72,7 @@ def main():
 
     def kill_all():
         "kill all cgroup processes"
-        time.sleep(0.5) # give child time to print output
+        time.sleep(0.5)  # give child time to print output
         for pid in (p for p in cgroups.cgroup_procs(cgroup_name)
                     if p != os.getpid()):
             os.kill(pid, signal.SIGINT)
@@ -105,10 +102,10 @@ def main():
             pipe_r, pipe_w = os.pipe()
             parentpid = os.getpid()
             if os.fork() == 0:
-                os.setpgrp() # SIGKILL shouldn't kill us
+                os.setpgrp()  # SIGKILL shouldn't kill us
                 os.close(pipe_w)
-                sys.stderr.write('%d: wait for %d, kill cgroup %s when dies\n' %
-                                 (os.getpid(), parentpid, cgroup_name))
+                sys.stderr.write('%d: wait for %d, kill cgroup %s when dies\n'
+                                 % (os.getpid(), parentpid, cgroup_name))
                 os.read(pipe_r, 1)
                 sys.stderr.write('killing cgroup %s' % cgroup_name)
                 kill_all()
@@ -232,7 +229,8 @@ def run_sshd(gateway):
     os.execlp(sshd_path, sshd_path, '-D', '-h', vagrant_priv.name, '-f',
               '/dev/null', '-o', 'Port=2222', '-o', 'ListenAddress=' + gateway,
               '-e', '-o', 'AuthorizedKeysFile=' + vagrant_pub.name, '-o',
-              'Subsystem=sftp internal-sftp')
+              'Subsystem=sftp internal-sftp', '-o', 'PermitEmptyPasswords=yes',
+              '-o', 'UsePAM=yes')
     sys.stderr.write('ERROR RUNNING sshd\n')
     sys.exit(1)
 
@@ -300,13 +298,12 @@ class Cgroup(object):
     def mount_entry(cls, line):
         "parse /proc/mounts entry to MountEntry object"
         fsname, dir_, type_, opts, freq, passno = line.split()
-        return cls.MountEntry(
-            fsname=fsname,
-            dir_=dir_,
-            type_=type_,
-            opts=opts,
-            freq=freq,
-            passno=passno)
+        return cls.MountEntry(fsname=fsname,
+                              dir_=dir_,
+                              type_=type_,
+                              opts=opts,
+                              freq=freq,
+                              passno=passno)
 
     MountEntry = namedtuple(
         'MountEntry', ['fsname', 'dir_', 'type_', 'opts', 'freq', 'passno'])
