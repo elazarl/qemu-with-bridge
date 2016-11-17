@@ -4,7 +4,6 @@ Runs QEMU with dnsmasq and bridge
 """
 import argparse
 import ipaddress
-import itertools
 import os
 import signal
 import subprocess
