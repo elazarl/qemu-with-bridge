@@ -113,25 +113,30 @@ def main():
     def masquerade():
         Iptables.masquarade_all_to(default_gateway_iface())
 
-    masquerade()
-    if os.fork() == 0:
-        repeat_every(5, masquerade)
-        signal.sigwait([signal.SIGINT])
-        sys.exit(0)
-    first_guest = ip_set_last(ip, 10)
-    last_guest = ip_set_last(ip, 198)
-    run_dnsmasq(devname, gateway, first_guest, last_guest)
-    run_sshd(gateway)
-    if 'bridge0' not in ' '.join(args.cmd):
-        subprocess.call([
-            args.cmd[0], '-netdev', 'type=bridge,id=bridge0,br=' + devname,
-            '-device',
-            'virtio-net-pci,netdev=bridge0,mac=DE:AD:BE:EF:43:1F'
-        ] + args.cmd[1:])
-    else:
-        subprocess.call([
-            args.cmd[0], '-netdev', 'type=bridge,id=bridge0,br=' + devname
-        ] + args.rest[1:])
+    try:
+        masquerade()
+        if os.fork() == 0:
+            repeat_every(5, masquerade)
+            signal.sigwait([signal.SIGINT])
+            sys.exit(0)
+        first_guest = ip_set_last(ip, 10)
+        last_guest = ip_set_last(ip, 198)
+        run_dnsmasq(devname, gateway, first_guest, last_guest)
+        run_sshd(gateway)
+        if 'bridge0' not in ' '.join(args.cmd):
+            subprocess.call([
+                args.cmd[0], '-netdev', 'type=bridge,id=bridge0,br=' + devname,
+                '-device',
+                'virtio-net-pci,netdev=bridge0,mac=DE:AD:BE:EF:43:1F'
+            ] + args.cmd[1:])
+        else:
+            subprocess.call([
+                args.cmd[0], '-netdev', 'type=bridge,id=bridge0,br=' + devname
+            ] + args.rest[1:])
+    finally:
+        s = signal.signal(signal.SIGINT, signal.SIG_IGN)
+        kill_all()
+        signal.signal(signal.SIGINT, s)
 
 
 class Iptables(object):
