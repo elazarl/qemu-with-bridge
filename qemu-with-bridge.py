@@ -121,14 +121,6 @@ def main():
         ['sudo', 'ip', 'link', 'set', 'dev', devname, 'up'])
     subprocess.check_call(
         ['ip', 'addr', 'add', gateway + '/24', 'dev', devname])
-    dnsmasq_pidfile = '/tmp/' + devname + '.pid'
-    if os.path.exists(dnsmasq_pidfile):
-        with open(dnsmasq_pidfile) as fp:
-            dnsmasq_pid = fp.read().strip()
-        subprocess.call(['sudo', 'kill', dnsmasq_pid])
-        subprocess.call(['sudo', 'kill', '-9', dnsmasq_pid])
-    subprocess.call(
-        ['sudo', 'bash', '-c', 'pgrep -f "i ' + devname + '"|xargs sudo kill'])
 
     def masquerade():
         Iptables.masquarade_all_to(default_gateway_iface())
