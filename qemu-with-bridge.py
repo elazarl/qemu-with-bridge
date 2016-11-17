@@ -123,12 +123,15 @@ def main():
     run_dnsmasq(devname, gateway, first_guest, last_guest)
     run_sshd(gateway)
     if 'bridge0' not in ' '.join(args.cmd):
-        os.execlp(args.cmd[0], args.cmd[0], '-netdev',
-                  'type=bridge,id=bridge0,br=' + devname, '-device',
-                  'virtio-net-pci,netdev=bridge0,mac=DE:AD:BE:EF:43:1F',
-                  *args.cmd[1:])
-    os.execlp(args.cmd[0], args.cmd[0], '-netdev',
-              'type=bridge,id=bridge0,br=' + devname, *args.rest[1:])
+        subprocess.call([
+            args.cmd[0], '-netdev', 'type=bridge,id=bridge0,br=' + devname,
+            '-device',
+            'virtio-net-pci,netdev=bridge0,mac=DE:AD:BE:EF:43:1F'
+        ] + args.cmd[1:])
+    else:
+        subprocess.call([
+            args.cmd[0], '-netdev', 'type=bridge,id=bridge0,br=' + devname
+        ] + args.rest[1:])
 
 
 class Iptables(object):
