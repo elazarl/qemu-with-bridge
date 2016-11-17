@@ -117,7 +117,8 @@ def main():
     subprocess.call(['ip', 'link', 'del', 'dev', devname])
     subprocess.check_call(
         ['ip', 'link', 'add', 'dev', devname, 'type', 'bridge'])
-    subprocess.check_call(['sudo', 'ip', 'link', 'set', 'dev', devname, 'up'])
+    subprocess.check_call(
+        ['sudo', 'ip', 'link', 'set', 'dev', devname, 'up'])
     subprocess.check_call(
         ['ip', 'addr', 'add', gateway + '/24', 'dev', devname])
     dnsmasq_pidfile = '/tmp/' + devname + '.pid'
