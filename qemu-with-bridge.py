@@ -114,10 +114,7 @@ def main():
 
     try:
         masquerade()
-        if os.fork() == 0:
-            repeat_every(5, masquerade)
-            signal.sigwait([signal.SIGINT])
-            sys.exit(0)
+        repeat_every(5, masquerade)
         first_guest = ip_set_last(ip, 10)
         last_guest = ip_set_last(ip, 198)
         run_dnsmasq(devname, gateway, first_guest, last_guest)
