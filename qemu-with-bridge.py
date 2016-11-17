@@ -72,6 +72,8 @@ def main():
 
     def kill_all():
         "kill all cgroup processes"
+        if not args.cgroup:
+            return
         time.sleep(0.5)  # give child time to print output
         for pid in (p for p in cgroups.cgroup_procs(cgroup_name)
                     if p != os.getpid()):
