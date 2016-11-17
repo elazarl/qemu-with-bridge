@@ -100,18 +100,6 @@ def main():
                 sys.stderr.write('%d: %s\n' % (pid, commandline))
             sys.exit(2)
         cgroups.join_cgroup(cgroup_name)
-        if args.kill_children:
-            pipe_r, pipe_w = os.pipe()
-            parentpid = os.getpid()
-            if os.fork() == 0:
-                os.setpgrp()  # SIGKILL shouldn't kill us
-                os.close(pipe_w)
-                sys.stderr.write('%d: wait for %d, kill cgroup %s when dies\n'
-                                 % (os.getpid(), parentpid, cgroup_name))
-                os.read(pipe_r, 1)
-                sys.stderr.write('killing cgroup %s' % cgroup_name)
-                kill_all()
-                sys.exit(0)
     devname = 'br_' + ip_set_last(ip, 0)
     # can fail, since it might not exist
     subprocess.call(['ip', 'link', 'del', 'dev', devname])
