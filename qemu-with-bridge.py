@@ -1,6 +1,34 @@
 #!/usr/bin/python3
 """
-Runs QEMU with dnsmasq and bridge
+This scripts creates an isolated network environment,
+and adds necessary configuration to the given QEMU command line to run
+in this network.
+
+WARNING: for development purposes only, allows PE for every user on the host.
+
+Typical Usage
+
+$ qemu-with-bridge.py -n 192.168.1.0 -- kvm -drive file=hd.qcow,if=virtio
+
+This would:
+
+    1. Create a new bridge
+    2. Set it up, and give its BR0 address of 192.168.1.199
+    3. run dnsmasq on 192.168.1.199, set it to give addresses from
+       192.168.1.10 to DHCP requests
+    4. run sshd on 192.168.1.199:2222, set it up to accept vagrant
+       insecure SSH key for root. Useful for sshfs from guest.
+    5. adds itself, and hence all children to a cgroup whose name
+       is derived from 192.168.1.0/24 subnet.
+    6. runs a thread that sets NAT to the default gateway every 5
+       seconds. This is done so that internet would still work even
+       if laptop default gateway changes, e.g., wifi, or VPN.
+       This is a hack, which will be fixed in future.
+    7. Takes the given command line, adds command line to set a new
+       tap device on bridge for qemu, and run the resulting command line.
+
+This gives an easy way to run many identical VMs in isolated network.
+
 """
 import argparse
 import ipaddress
