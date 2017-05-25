@@ -127,7 +127,7 @@ def main():
                 sys.stderr.write('%d: %s\n' % (pid, commandline))
             sys.exit(2)
         cgroups.join_cgroup(cgroup_name)
-    devname = 'br_' + ip_set_last(ip, 0)
+    devname = 'b' + ip_set_last(ip, 0)
     # can fail, since it might not exist
     subprocess.call(['ip', 'link', 'del', 'dev', devname])
     subprocess.check_call(
