@@ -69,6 +69,11 @@ def main():
                         dest='virtio',
                         action='store_true',
                         help='use a virtio driver, useful if you have Linux')
+    parser.add_argument('--add',
+                        '-a',
+                        dest='add',
+                        action='store_true',
+                        help='Do not create a new bridge, add guest to existing bridge')
     parser.add_argument('--mac',
                         '-m',
                         dest='mac',
@@ -129,7 +134,11 @@ def main():
         kill_all()
         sys.exit(0)
     if args.cgroup:
-        if not cgroups.is_cgroup_empty(cgroup_name):
+        if cgroups.is_cgroup_empty(cgroup_name) and args.add:
+            sys.stderr.write('Trying to add a VM to a nonexisting bridge (cgroup %s)\n'%cgroup_name +
+                    'please run ./qemu-with-bridge -n %s -- kvm ... without --add once\n'%ip_set_last(ip, 0))
+            sys.exit(3)
+        if not cgroups.is_cgroup_empty(cgroup_name) and not args.add:
             sys.stderr.write('Processes for net %s are running:\n' %
                              cgroup_name)
             for pid in cgroups.cgroup_procs(cgroup_name):
@@ -144,23 +153,25 @@ def main():
         cgroups.join_cgroup(cgroup_name)
     devname = 'b' + ip_set_last(ip, 0)
     # can fail, since it might not exist
-    subprocess.call(['ip', 'link', 'del', 'dev', devname])
-    subprocess.check_call(
-        ['ip', 'link', 'add', 'dev', devname, 'type', 'bridge'])
-    subprocess.check_call(['sudo', 'ip', 'link', 'set', 'dev', devname, 'up'])
-    subprocess.check_call(
-        ['ip', 'addr', 'add', gateway + '/24', 'dev', devname])
+    if not args.add:
+        subprocess.call(['ip', 'link', 'del', 'dev', devname])
+        subprocess.check_call(
+            ['ip', 'link', 'add', 'dev', devname, 'type', 'bridge'])
+        subprocess.check_call(['sudo', 'ip', 'link', 'set', 'dev', devname, 'up'])
+        subprocess.check_call(
+            ['ip', 'addr', 'add', gateway + '/24', 'dev', devname])
 
     def masquerade():
         Iptables.masquarade_all_to(default_gateway_iface())
 
     try:
-        masquerade()
-        repeat_every(5, masquerade)
-        first_guest = ip_set_last(ip, 10)
-        last_guest = ip_set_last(ip, 198)
-        run_dnsmasq(devname, gateway, first_guest, last_guest)
-        run_sshd(gateway)
+        if not args.add:
+            masquerade()
+            repeat_every(5, masquerade)
+            first_guest = ip_set_last(ip, 10)
+            last_guest = ip_set_last(ip, 198)
+            run_dnsmasq(devname, gateway, first_guest, last_guest)
+            run_sshd(gateway)
         if 'bridge0' not in ' '.join(args.cmd):
             macaddr = 'mac='+args.mac
             bridgeid = 'netdev=bridge0'
@@ -183,9 +194,10 @@ def main():
                 args.cmd[0], '-netdev', 'type=bridge,id=bridge0,br=' + devname
             ] + args.rest[1:])
     finally:
-        s = signal.signal(signal.SIGINT, signal.SIG_IGN)
-        kill_all()
-        signal.signal(signal.SIGINT, s)
+        if not args.add:
+            s = signal.signal(signal.SIGINT, signal.SIG_IGN)
+            kill_all()
+            signal.signal(signal.SIGINT, s)
 
 
 class Iptables(object):
