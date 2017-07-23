@@ -64,6 +64,20 @@ def main():
         '--net',
         '-n',
         help='network address of the interface, default mask /24')
+    parser.add_argument('--virtio',
+                        '-V',
+                        dest='virtio',
+                        action='store_true',
+                        help='use a virtio driver, useful if you have Linux')
+    parser.add_argument('--mac',
+                        '-m',
+                        dest='mac',
+                        default='DE:AD:BE:EF:43:1F',
+                        help='use a custom MAC on network device')
+    parser.add_argument('-device',
+                        '-d',
+                        dest='device',
+                        help='pass a custom -device to QEMU for network device')
     parser.add_argument('--kill-cgroup',
                         '-k',
                         dest='kill_cgroup',
@@ -76,6 +90,7 @@ def main():
                         help='store all processes in cgroup, ' +
                         'refuse to run if cgroup processes already exist')
     parser.set_defaults(cgroup=True)
+    parser.set_defaults(virtio=False)
     parser.add_argument(
         '--no-kill-children-at-exit',
         dest='kill_children',
@@ -147,10 +162,21 @@ def main():
         run_dnsmasq(devname, gateway, first_guest, last_guest)
         run_sshd(gateway)
         if 'bridge0' not in ' '.join(args.cmd):
+            macaddr = 'mac='+args.mac
+            bridgeid = 'netdev=bridge0'
+            if args.device:
+                if 'mac=' not in args.device:
+                    device = [args.device, bridgeid, macaddr]
+                args.cmd.extend(['-device', ','.join(args.device)])
+            else:
+                devtype = 'e1000'
+                if args.virtio:
+                    devtype = 'virtio-net-pci'
+                device = [devtype, bridgeid, macaddr]
             subprocess.call([
                 args.cmd[0], '-netdev', 'type=bridge,id=bridge0,br=' + devname,
                 '-device',
-                'virtio-net-pci,netdev=bridge0,mac=DE:AD:BE:EF:43:1F'
+                devtype+',netdev=bridge0,'+macaddr
             ] + args.cmd[1:])
         else:
             subprocess.call([
