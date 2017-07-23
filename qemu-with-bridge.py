@@ -31,6 +31,7 @@ This gives an easy way to run many identical VMs in isolated network.
 
 """
 import argparse
+import fcntl
 import ipaddress
 import os
 import signal
@@ -64,6 +65,7 @@ def main():
         '--net',
         '-n',
         help='network address of the interface, default mask /24')
+    defaultmac = 'DE:AD:BE:EF:43:1F'
     parser.add_argument('--virtio',
                         '-V',
                         dest='virtio',
@@ -77,7 +79,7 @@ def main():
     parser.add_argument('--mac',
                         '-m',
                         dest='mac',
-                        default='DE:AD:BE:EF:43:1F',
+                        default='default',
                         help='use a custom MAC on network device')
     parser.add_argument('-device',
                         '-d',
@@ -117,6 +119,8 @@ def main():
     cgroup_name = 'qemu_' + ip_set_last(ip, 0)
     cgroups = Cgroup()
 
+    mac_counter_name = '/var/run/qemu_with_bridge_'+ip_set_last(ip, 0)
+
     def kill_all():
         "kill all cgroup processes"
         if not args.cgroup:
@@ -150,7 +154,15 @@ def main():
                     pass  #whatever happens - nevermind, just debug info
                 sys.stderr.write('%d: %s\n' % (pid, commandline))
             sys.exit(2)
+        # make sure we get the first MAC
+        if not args.add and os.path.exists(mac_counter_name):
+            os.remove(mac_counter_name)
         cgroups.join_cgroup(cgroup_name)
+    else:
+        if not args.add and os.path.exists(mac_counter_name):
+            os.remove(mac_counter_name)
+    if args.mac == 'default':
+        args.mac = defaultmac[:-2] + '%02X'%(0x1f+flock_counter_inc(mac_counter_name))
     devname = 'b' + ip_set_last(ip, 0)
     # can fail, since it might not exist
     if not args.add:
@@ -393,6 +405,41 @@ NE5OgEXk2wVfZczCZpigBKbKZHNYcelXtTt/nP3rsCuGcM4h53s=
 VAGRANT_PUB = b'''
 ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key
 '''
+
+def flock_counter_inc(path):
+    with FlockCounter(path) as counter:
+        return counter.counter()
+
+class FlockCounter(object):
+    "open and exclusively flock a file"
+    def __init__(self, path):
+        self.fd = open(path, 'a+')
+
+    def __enter__(self):
+        fcntl.flock(self.fd, fcntl.LOCK_EX)
+        self._inc()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        fcntl.flock(self.fd, fcntl.LOCK_UN)
+        self.fd.close()
+
+    def _inc(self):
+        self.fd.seek(0, 0)
+        n = self.fd.read()
+        if not n:
+            n = 0
+        else:
+            n = int(n)
+        self.n = n+1
+        self.fd.seek(0, 0)
+        self.fd.truncate(0)
+        self.fd.write(str(self.n))
+        self.fd.flush()
+
+    def counter(self):
+        return self.n
+
 
 if __name__ == '__main__':
     try:
