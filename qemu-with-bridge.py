@@ -66,6 +66,11 @@ def main():
         '-n',
         help='network address of the interface, default mask /24')
     defaultmac = 'DE:AD:BE:EF:43:1F'
+    parser.add_argument('--tap-from-cmd',
+                        '-T',
+                        dest='cmd_tap',
+                        action='store_true',
+                        help='Create tap devices for each -netev tap,ifname= commandline')
     parser.add_argument('--virtio',
                         '-V',
                         dest='virtio',
@@ -176,6 +181,7 @@ def main():
     def masquerade():
         Iptables.masquarade_all_to(default_gateway_iface())
 
+    tapdevs_to_del = []
     try:
         if not args.add:
             masquerade()
@@ -184,7 +190,36 @@ def main():
             last_guest = ip_set_last(ip, 198)
             run_dnsmasq(devname, gateway, first_guest, last_guest)
             run_sshd(gateway)
-        if 'bridge0' not in ' '.join(args.cmd):
+        if args.cmd_tap:
+            current_tap = []
+            for line in subprocess.check_output(['ip', 'tuntap', 'show']).split(b'\n'):
+                line = line.decode('utf-8')
+                if not ': tap' in line:
+                    continue
+                current_tap.append(line[:line.index(': tap')])
+            cmdline = args.cmd[:]
+            while cmdline and '-netdev' in cmdline[:-1]:
+                cmdline = cmdline[cmdline.index('-netdev')+1:]
+                parts = cmdline[0].split(',')
+                if parts[0] != 'tap' and 'type=tap' not in parts:
+                    continue
+                for part in parts:
+                    if not part.startswith('ifname='):
+                        continue
+                    ifname = part[len('ifname='):]
+                    # remove tap device, only if it is currently a tap device
+                    # so that tap device named eth0 wouldn't kill the system...
+                    if ifname in current_tap:
+                        subprocess.check_call(['ip', 'link', 'del', 'dev', ifname])
+                    subprocess.check_call(['ip', 'tuntap', 'add', 'dev',
+                        ifname, 'mode', 'tap'])
+                    subprocess.check_call(['ip', 'link', 'set', 'dev',
+                        ifname, 'up'])
+                    subprocess.check_call(['ip', 'link', 'set', 'dev',
+                        ifname, 'master', devname])
+                    tapdevs_to_del.append(ifname)
+            subprocess.call(args.cmd)
+        elif 'bridge0' not in ' '.join(args.cmd):
             macaddr = 'mac='+args.mac
             bridgeid = 'netdev=bridge0'
             if args.device:
@@ -209,6 +244,9 @@ def main():
         if not args.add:
             s = signal.signal(signal.SIGINT, signal.SIG_IGN)
             kill_all()
+            # remove tap devices when done
+            for devname in tapdevs_to_del:
+                subprocess.call(['ip', 'link', 'del', 'dev', devname])
             signal.signal(signal.SIGINT, s)
 
 
