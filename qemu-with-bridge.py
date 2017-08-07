@@ -79,7 +79,8 @@ def main():
     parser.add_argument('--add',
                         '-a',
                         dest='add',
-                        action='store_true',
+                        nargs='?',
+                        const=True,
                         help='Do not create a new bridge, add guest to existing bridge')
     parser.add_argument('--mac',
                         '-m',
@@ -116,12 +117,20 @@ def main():
                         action='store_true',
                         help='just print SSH key')
     args = parser.parse_args()
+    custom_br = args.add and not args.add is True
+    if custom_br:
+        args.cgroup = False
     if args.ssh_key:
         sys.stdout.buffer.write(VAGRANT_PRIV)
         return
-    ip = ipaddress.ip_address(args.net)
-    gateway = ip_set_last(ip, 199)
-    cgroup_name = 'qemu_' + ip_set_last(ip, 0)
+    if not custom_br:
+        ip = ipaddress.ip_address(args.net)
+        gateway = ip_set_last(ip, 199)
+        cgroup_name = 'qemu_' + ip_set_last(ip, 0)
+    else:
+        ip = ipaddress.ip_address('10.19.17.1')
+        gateway = ip_set_last(ip, 199)
+        cgroup_name = 'qemu_custom_br_' + ip_set_last(ip, 0)
     cgroups = Cgroup()
 
     mac_counter_name = '/var/run/qemu_with_bridge_'+ip_set_last(ip, 0)
@@ -169,6 +178,8 @@ def main():
     if args.mac == 'default':
         args.mac = defaultmac[:-2] + '%02X'%(0x1f+flock_counter_inc(mac_counter_name))
     devname = 'b' + ip_set_last(ip, 0)
+    if custom_br:
+        devname = args.add
     # can fail, since it might not exist
     if not args.add:
         subprocess.call(['ip', 'link', 'del', 'dev', devname])
