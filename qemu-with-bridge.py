@@ -193,7 +193,8 @@ def main():
         # if the laptop is disconnected from the internet, and no
         # default gateway exist, no masquerade is needed
         if default_gateway_iface():
-            Iptables.masquarade_all_to(default_gateway_iface())
+            Iptables.masquarade_all_to(default_gateway_iface(),
+                    bytes(devname, 'ascii'))
 
     tapdevs_to_del = []
     try:
@@ -266,12 +267,46 @@ class Iptables(object):
         ['pkts', 'bytes', 'target', 'prot', 'opt', 'in_', 'out', 'src', 'dst'])
 
     @classmethod
-    def get_postrouting(cls):
+    def _get_chain(cls, chain, table='filter'):
         "returns the POSTROUTING table lines"
         txt = subprocess.check_output(
-            ['iptables', '-v', '-t', 'nat', '-L', 'POSTROUTING'])
+            ['iptables', '-v', '-t', table, '-L', chain])
         return [cls.entry(*x.split()[:9])
                 for x in txt.strip().split(b'\n')[2:]]
+
+    @classmethod
+    def get_postrouting(cls):
+        return cls._get_chain('POSTROUTING', 'nat')
+
+    @classmethod
+    def get_forward(cls):
+        return cls._get_chain('FORWARD')
+
+    @classmethod
+    def is_entry_forward_from_bridge(cls, ent, bridge):
+        return all([ent.prot == b'all', ent.target == b'ACCEPT',
+                    ent.in_ == bytes(bridge), ent.src == b'anywhere',
+                    ent.dst == b'anywhere', ent.out == b'any'])
+
+    @classmethod
+    def has_forward_from_bridge(cls, bridge):
+        for ent in cls.get_forward():
+            if cls.is_entry_forward_from_bridge(ent, bridge):
+                return True
+        return False
+
+    @classmethod
+    def is_entry_forward_to_bridge(cls, ent, bridge):
+        return all([ent.prot == b'all', ent.target == b'ACCEPT',
+                    ent.in_ == b'any', ent.src == b'anywhere',
+                    ent.dst == b'anywhere', ent.out == bridge])
+
+    @classmethod
+    def has_forward_to_bridge(cls, bridge):
+        for ent in cls.get_forward():
+            if cls.is_entry_forward_to_bridge(ent, bridge):
+                return True
+        return False
 
     @classmethod
     def is_entry_masquerade_to(cls, ent, iface):
@@ -289,8 +324,16 @@ class Iptables(object):
         return False
 
     @classmethod
-    def masquarade_all_to(cls, iface):
+    def masquarade_all_to(cls, iface, bridge):
         "add masquerade rule to interface iface if needed"
+        if not cls.has_forward_from_bridge(bridge):
+            print('adding accept forward rule from bridge', bridge)
+            subprocess.check_call(['iptables', '-I', 'FORWARD', '1',
+                                   '-i', bridge, '-j', 'ACCEPT'])
+        if not cls.has_forward_to_bridge(bridge):
+            print('adding accept forward rule from bridge', bridge)
+            subprocess.check_call(['iptables', '-I', 'FORWARD', '1',
+                                   '-o', bridge, '-j', 'ACCEPT'])
         if not cls.has_masquerade_to(iface):
             print('adding masquarade rule for interface', iface)
             subprocess.check_call(['iptables', '-t', 'nat', '-A',
