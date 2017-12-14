@@ -190,7 +190,10 @@ def main():
             ['ip', 'addr', 'add', gateway + '/24', 'dev', devname])
 
     def masquerade():
-        Iptables.masquarade_all_to(default_gateway_iface())
+        # if the laptop is disconnected from the internet, and no
+        # default gateway exist, no masquerade is needed
+        if default_gateway_iface():
+            Iptables.masquarade_all_to(default_gateway_iface())
 
     tapdevs_to_del = []
     try:
