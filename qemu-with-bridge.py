@@ -219,7 +219,7 @@ def main():
                 if args.virtio:
                     devtype = 'virtio-net-pci'
                 device = [devtype, netdevid, macaddr]
-            args.cmd.extend(['-netdev', 'type=tap,ifname=QWBtap,id='+netdevname])
+            args.cmd.extend(['-netdev', 'type=tap,script=no,ifname=QWBtap,id='+netdevname])
             if not args.device:
                 args.cmd.extend(['-device', devtype+',netdev='+netdevname+','+macaddr])
         current_tap = []
