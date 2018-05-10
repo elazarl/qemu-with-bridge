@@ -225,7 +225,7 @@ def main():
         current_tap = []
         for line in subprocess.check_output(['ip', 'tuntap', 'show']).split(b'\n'):
             line = line.decode('utf-8')
-            if not ': tap' in line:
+            if ': tap' not in line:
                 continue
             current_tap.append(line[:line.index(': tap')])
         cmdline = args.cmd[:]
